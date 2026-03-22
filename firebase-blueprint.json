@@ -1,0 +1,59 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "System users (admins and employees)",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Full name" },
+        "email": { "type": "string", "format": "email", "description": "Email address" },
+        "username": { "type": "string", "description": "Unique username or user ID" },
+        "role": { "type": "string", "enum": ["admin", "employee"], "description": "User role" },
+        "employeeType": { "type": "string", "enum": ["regular", "intern"], "description": "Type of employee" },
+        "requiredHours": { "type": "number", "description": "Required hours for interns" },
+        "faceImage": { "type": "string", "description": "Base64 encoded face image" }
+      },
+      "required": ["name", "email", "username", "role"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily attendance records",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the user" },
+        "date": { "type": "string", "description": "YYYY-MM-DD" },
+        "timeIn": { "type": "string", "description": "ISO timestamp" },
+        "timeOut": { "type": "string", "description": "ISO timestamp" },
+        "status": { "type": "string", "enum": ["present", "absent", "missed"], "description": "Attendance status" }
+      },
+      "required": ["userId", "date", "status"]
+    },
+    "GapReason": {
+      "title": "GapReason",
+      "description": "Explanations for missed time records",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "ID of the user" },
+        "recordId": { "type": "string", "description": "ID of the record" },
+        "reason": { "type": "string", "description": "Text explanation" },
+        "status": { "type": "string", "enum": ["pending", "approved", "denied"], "description": "Approval status" },
+        "adminComment": { "type": "string", "description": "Optional admin feedback" }
+      },
+      "required": ["userId", "recordId", "reason", "status"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/records/{recordId}": {
+      "schema": "AttendanceRecord",
+      "description": "Attendance logs"
+    },
+    "/gaps/{gapId}": {
+      "schema": "GapReason",
+      "description": "Gap reason submissions"
+    }
+  }
+}

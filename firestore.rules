@@ -1,0 +1,115 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        (request.auth.token.email == "isaiahnoelsalazar474@gmail.com") ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['name', 'email', 'username', 'role']) &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.email is string && data.email.matches('^.+@.+$') &&
+             data.username is string && data.username.size() > 0 && data.username.size() < 50 &&
+             data.role in ['admin', 'employee'] &&
+             (!('authMethod' in data) || data.authMethod in ['google', 'email']) &&
+             (!('employeeType' in data) || data.employeeType in ['regular', 'intern']) &&
+             (!('requiredHours' in data) || data.requiredHours is number) &&
+             (!('faceImage' in data) || (data.faceImage is string && data.faceImage.size() < 1000000));
+    }
+
+    function isValidRecord(data) {
+      return data.keys().hasAll(['userId', 'date', 'status']) &&
+             data.userId is string &&
+             data.date is string && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+             data.status in ['present', 'absent', 'missed'] &&
+             (!('timeIn' in data) || data.timeIn is string) &&
+             (!('timeOut' in data) || data.timeOut is string);
+    }
+
+    function isValidGap(data) {
+      return data.keys().hasAll(['userId', 'recordId', 'reason', 'status']) &&
+             data.userId is string &&
+             data.recordId is string &&
+             data.reason is string && data.reason.size() > 0 && data.reason.size() < 1000 &&
+             data.status in ['pending', 'approved', 'denied'];
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (
+        isOwner(userId) || 
+        (request.auth.token.email == "isaiahnoelsalazar474@gmail.com") ||
+        (resource.data.email == request.auth.token.email) ||
+        isAdmin()
+      );
+      allow create: if isAuthenticated() && (
+        (request.auth.token.email == "isaiahnoelsalazar474@gmail.com") ||
+        isAdmin() || (
+          isOwner(userId) && 
+          isValidUser(request.resource.data) && 
+          request.resource.data.email == request.auth.token.email &&
+          (
+            request.resource.data.role == 'employee' ||
+            (exists(/databases/$(database)/documents/users/$( 'pending_' + request.auth.token.email )) && 
+             get(/databases/$(database)/documents/users/$( 'pending_' + request.auth.token.email )).data.role == request.resource.data.role)
+          )
+        )
+      );
+      allow update: if isAdmin() && isValidUser(request.resource.data);
+      allow delete: if isAdmin() || (
+        isAuthenticated() && 
+        userId.startsWith('pending_') && 
+        resource.data.email == request.auth.token.email
+      );
+    }
+
+    match /test/{docId} {
+      allow read, write: if isAuthenticated();
+    }
+
+    match /usernames/{username} {
+      allow read: if true; // Public lookup for login
+      allow create, update: if isAdmin() || (
+        isAuthenticated() && 
+        request.resource.data.email == request.auth.token.email &&
+        request.resource.data.userId == request.auth.uid
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /records/{recordId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && isValidRecord(request.resource.data) && (request.resource.data.userId == request.auth.uid || isAdmin());
+      allow update: if isAuthenticated() && isValidRecord(request.resource.data) && (
+        (request.auth.uid == resource.data.userId && request.resource.data.userId == resource.data.userId) || 
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /gaps/{gapId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && isValidGap(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAdmin() && isValidGap(request.resource.data);
+      allow delete: if isAdmin();
+    }
+  }
+}
