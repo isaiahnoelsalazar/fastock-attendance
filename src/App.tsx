@@ -131,6 +131,16 @@ const Camera = ({ onCapture, registeredFace }: { onCapture: (img: string) => voi
         canvas.height = 500;
 
         context.drawImage(video, startX, startY, size, size, 0, 0, 500, 500);
+
+        // Add timestamp overlay
+        const timestamp = format(new Date(), 'MMM dd, yyyy hh:mm:ss a');
+        context.font = 'bold 16px Inter, sans-serif';
+        context.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        const textWidth = context.measureText(timestamp).width;
+        context.fillRect(10, 500 - 35, textWidth + 20, 25);
+        context.fillStyle = 'white';
+        context.fillText(timestamp, 20, 500 - 17);
+
         const rawImg = canvas.toDataURL('image/jpeg', 0.7);
         const img = await compressImage(rawImg);
         
